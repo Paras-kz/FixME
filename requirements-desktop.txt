@@ -1,0 +1,4 @@
+# Extra deps only needed to build/run the standalone desktop app (desktop.py).
+-r requirements.txt
+pywebview
+pyinstaller

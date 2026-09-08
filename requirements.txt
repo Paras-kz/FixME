@@ -1,0 +1,4 @@
+nicegui
+sqlmodel
+psycopg[binary]
+python-dotenv

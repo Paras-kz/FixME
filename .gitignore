@@ -1,0 +1,8 @@
+fixme.db
+__pycache__/
+*.pyc
+.venv/
+.env
+build/
+dist/
+*.spec
