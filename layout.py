@@ -3,9 +3,12 @@ from contextlib import contextmanager
 
 import httpx
 from nicegui import app, ui
+from sqlmodel import select
 
 from auth import logout
+from db import get_session
 from identity import current_owner
+from models import Note
 from version import VERSION, DOWNLOAD_PAGE_URL, UPDATE_CHECK_URL
 
 NAV = [
@@ -43,6 +46,23 @@ async def _check_for_updates() -> None:
     dialog.open()
 
 
+def _load_note() -> str:
+    with get_session() as session:
+        note = session.exec(select(Note).where(Note.owner == current_owner())).first()
+        return note.content if note else ""
+
+
+def _save_note(content: str) -> None:
+    with get_session() as session:
+        note = session.exec(select(Note).where(Note.owner == current_owner())).first()
+        if note:
+            note.content = content
+        else:
+            note = Note(owner=current_owner(), content=content)
+        session.add(note)
+        session.commit()
+
+
 @contextmanager
 def frame(title: str):
     ui.colors(primary="#6366f1")
@@ -72,16 +92,39 @@ def frame(title: str):
             except RuntimeError:
                 pass  # desktop app: no storage_secret configured, no login concept needed
 
-    if current_owner().startswith("guest:"):
+    if current_owner().startswith("guest:") and not app.storage.user.get("banner_dismissed", False):
         with ui.row().classes(
             "w-full bg-amber-950/40 text-amber-200 text-xs px-4 py-1.5 items-center gap-2"
-        ):
+        ) as banner:
             ui.icon("info", size="xs")
-            ui.label(
-                "You're browsing as a guest — this demo data is private to your browser, "
-                "not shared with anyone else."
+            ui.label("You are in guest mode — download the app to enjoy it offline.")
+            ui.link("Get the app", "/download").classes("text-amber-200 underline")
+            ui.space()
+
+            def dismiss() -> None:
+                app.storage.user["banner_dismissed"] = True
+                banner.delete()
+
+            ui.button(icon="close", on_click=dismiss).props(
+                "flat dense round size=xs color=amber-200"
             )
 
     with ui.column().classes("w-full max-w-5xl mx-auto p-4 gap-4"):
         ui.label(title).classes("text-2xl font-semibold")
         yield
+
+    note_panel = (
+        ui.card()
+        .classes("fixed bottom-20 right-6 w-64 p-3 gap-1 bg-yellow-100 text-neutral-900 shadow-lg z-50")
+    )
+    note_panel.set_visibility(False)
+    with note_panel:
+        ui.label("Sticky note").classes("text-xs font-bold text-neutral-500")
+        ui.textarea(value=_load_note(), on_change=lambda e: _save_note(e.value)).props(
+            "borderless dark=false rows=6"
+        ).classes("w-full bg-transparent text-neutral-900")
+
+    ui.button(
+        icon="sticky_note_2",
+        on_click=lambda: note_panel.set_visibility(not note_panel.visible),
+    ).props("fab color=amber-600").classes("fixed bottom-6 right-6 z-50")

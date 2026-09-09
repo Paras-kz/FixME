@@ -51,3 +51,11 @@ class PomodoroSession(SQLModel, table=True):
     started_at: datetime = Field(default_factory=datetime.utcnow)
     ended_at: datetime | None = None
     completed: bool = False
+
+
+class Note(SQLModel, table=True):
+    """A single free-form sticky note per owner (one row, upserted)."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    owner: str = "owner"
+    content: str = ""
